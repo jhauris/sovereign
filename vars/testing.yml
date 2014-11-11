@@ -80,3 +80,17 @@ selfoss_password_hash: "f7fbba6e0636f890e56fbbf3283e524c6fa3204ae298382d624741d0
 # wallabag
 wallabag_salt: testing
 wallabag_db_password: testPassword
+
+# ldap
+ldap_org: sovereign.local
+ldap_domain: sovereign.local
+ldap_host: sovereign.local
+ldap_admin_cn: admin
+ldap_admin_password: testPassword
+
+# GOsa
+gosa_ldap_dn: dc=sovereign,dc=local
+gosa_admin: gosa-admin
+gosa_password: testPassword
+gosa_domain: ldap.sovereign.local
+gosa_root: /

@@ -1,0 +1,44 @@
+<VirtualHost *:80>
+    ServerName {{ gosa_domain }}
+
+    Redirect permanent / https://{{ gosa_domain }}/
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName {{ gosa_domain }}
+
+    SSLEngine on
+    SSLProtocol ALL -SSLv2 -SSLv3
+    SSLHonorCipherOrder On
+    SSLCipherSuite ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AES:RSA+3DES:!ADH:!AECDH:!MD5:!DSS
+    SSLCertificateFile      /etc/ssl/certs/wildcard_public_cert.crt
+    SSLCertificateKeyFile   /etc/ssl/private/wildcard_private.key
+    SSLCACertificateFile    /etc/ssl/certs/wildcard_ca.pem
+    Header add Strict-Transport-Security "max-age=15768000; includeSubdomains"
+
+    DocumentRoot /usr/share/gosa/html
+    <IfModule mod_php5.c>
+        <Location {{ gosa_root }}>
+            php_admin_flag engine on
+            php_admin_flag register_globals off
+            php_admin_flag allow_call_time_pass_reference off
+            php_admin_flag expose_php off
+            php_admin_flag zend.ze1_compatibility_mode off
+            php_admin_flag register_long_arrays off
+            php_admin_flag magic_quotes_gpc off
+            php_admin_value upload_tmp_dir /var/spool/gosa/
+            php_admin_value session.cookie_lifetime 0
+            include /etc/gosa/gosa.secrets
+        </Location>
+    </IfModule>
+
+    <IfModule mod_fcgid.c>
+        PHP_Fix_Pathinfo_Enable 1
+        <Location {{ gosa_root }}>
+            Options +ExecCGI
+            AddHandler fcgid-script .php
+            FCGIWrapper /var/www/php-fcgi/php-fcgi-starter .php
+            include /etc/gosa/gosa.secrets
+        </Location>
+    </IfModule>
+</VirtualHost>

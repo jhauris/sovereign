@@ -23,4 +23,5 @@
     - git
     - newebe
     - readlater
+    - ldap
     - monitoring  # Monitoring role should be last. See roles/monitoring/README.md

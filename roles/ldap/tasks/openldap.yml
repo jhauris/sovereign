@@ -1,0 +1,187 @@
+# Apache installed by common tasks
+- name: Install apt-utils
+  apt: pkg=apt-utils state=present
+
+- name: configure slapd generated admin password
+  debconf:
+    name: slapd
+    question: slapd/internal/generated_adminpw
+    vtype: password
+    value: '{{ ldap_admin_password }}'
+
+- name: configure slapd password (2)
+  debconf:
+    name: slapd
+    question: slapd/password2
+    vtype: password
+    value: '{{ ldap_admin_password }}'
+
+- name: configure slapd admin password
+  debconf:
+    name: slapd
+    question: slapd/internal/adminpw
+    vtype: password
+    value: '{{ ldap_admin_password }}'
+
+- name: configure slapd password (1)
+  debconf:
+    name: slapd
+    question: slapd/password1
+    vtype: password
+    value: '{{ ldap_admin_password }}'
+
+- name: configure slapd LDAPv2 (disallowed)
+  debconf:
+    name: slapd
+    question: slapd/allow_ldap_v2
+    vtype: boolean
+    value: 'false'
+
+- name: configure slapd password mismatch
+  debconf:
+    name: slapd
+    question: slapd/password_mismatch
+    vtype: boolean
+    value: 'false'
+
+- name: configure slapd invalid config
+  debconf:
+    name: slapd
+    question: slapd/invalid_config
+    vtype: boolean
+    value: 'false'
+    
+- name: configure slapd organization
+  debconf:
+    name: slapd
+    question: shared/organization
+    vtype: string
+    value: '{{ ldap_org }}'
+
+- name: configure slapd slapcat failure
+  debconf:
+    name: slapd
+    question: slapd/upgrade_slapcat_failure
+    vtype: string
+    value: ''
+
+- name: configure slapd dump dir
+  debconf: name=slapd question='slapd/dump_database_destdir' vtype='string' value='/var/backups/slapd-VERSION'
+
+- name: configure slapd database purging
+  debconf:
+    name: slapd
+    question: slapd/purge_database
+    vtype: boolean
+    value: 'false'
+
+- name: configure slapd domain
+  debconf:
+    name: slapd
+    question: slapd/domain
+    vtype: string
+    value: '{{ ldap_domain }}'
+
+- name: configure slapd backend
+  debconf: name=slapd question='slapd/backend' vtype='select' value='HDB'
+
+- name: configure slapd dump_database
+  debconf: name=slapd question='slapd/dump_database' vtype='select' value='when needed'
+
+- name: Install LDAP
+  apt: pkg=slapd state=present
+
+- name: Install LDAP utilities and gosa schemas
+  apt: pkg={{ item }} state=present
+  with_items:
+    - ldap-utils
+    - gosa-schema
+    - gosa-plugin-fai-schema
+    - gosa-plugin-kolab-schema
+    - gosa-plugin-nagios-schema
+    - gosa-plugin-pureftpd-schema
+    - gosa-plugin-ssh-schema
+    - gosa-plugin-sudo-schema
+  notify: restart slapd
+    
+- name: Apply GOsa schemas
+  shell: ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/gosa/{{ item }} && touch /etc/ldap/{{ item }}.added creates=/etc/ldap/{{ item }}.added
+  with_items:
+    - samba3.ldif
+    - gosystem.ldif
+    - gofon.ldif
+    - gofax.ldif
+    - goto.ldif
+    - goserver.ldif
+    - gosa-samba3.ldif
+    - goto-mime.ldif
+    - trust.ldif
+    - pureftpd.ldif
+    - fai.ldif
+    - sudo.ldif
+    - nagios.ldif
+    - rfc2739.ldif
+    - kolab2.ldif
+
+- name: Apply dyngroup schema
+  shell: ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/dyngroup.ldif && touch /etc/ldap/dyngroup.ldif.added creates=/etc/ldap/dyngroup.ldif.added
+
+- name: Install GOsa
+  apt: pkg={{ item }} state=present
+  with_items:
+    - gosa
+    - gosa-plugin-fai
+    - gosa-plugin-kolab
+    - gosa-plugin-nagios
+    - gosa-plugin-pureftpd
+    - gosa-plugin-samba
+    - gosa-plugin-ssh
+    - gosa-plugin-sudo
+
+- name: Get GOSa config checksum
+  shell: php -r "echo(md5(file_get_contents('/usr/share/doc/gosa/gosa.conf')));"
+  register: gosa_checksum_result
+
+- name: Generate GOSa UUID
+  shell: php -r "include '/usr/share/gosa/include/functions.inc';echo(gen_uuid());"
+  register: gosa_uuid_result
+
+- name: Set GOsa config file
+  template: src=etc_gosa_gosa.j2
+            dest=/etc/gosa/gosa.conf
+            owner=root
+            group=www-data
+            mode=0640
+
+- name: Check for GOSa admin account
+  shell: ldapsearch -H "ldap://{{ ldap_host }}" -D "cn={{ ldap_admin_cn }},{{ gosa_ldap_dn }}" -b "ou=people,{{ gosa_ldap_dn }}" -w "{{ ldap_admin_password }}" "(&(objectClass=gosaAccount)(uid={{ gosa_admin }}))" cn | grep "^dn"
+  register: gosa_admin_present
+  ignore_errors: True
+
+- name: Check for people OU
+  shell: ldapsearch "-H ldap://{{ ldap_host }}" -D "cn={{ ldap_admin_cn }},{{ gosa_ldap_dn }}" -b "{{ gosa_ldap_dn }}" -w  "{{ ldap_admin_password }}" "(&(objectClass=organizationalUnit)(ou=people))" | grep "^dn"
+  register: people_ou_present
+  ignore_errors: True
+  when: gosa_admin_present|failed
+
+- name: Add people OU
+  script: add_people.sh "{{ ldap_admin_cn }}" "{{ ldap_admin_password }}" "{{ gosa_ldap_dn }}" "{{ ldap_host }}"
+  when: people_ou_present|failed
+
+- name: Add GOSa admin account
+  script: add_gosa_admin.sh "{{ ldap_admin_cn }}" "{{ ldap_admin_password }}" "{{ gosa_ldap_dn }}" "{{ gosa_admin }}" "{{ ldap_host }}"
+  when: gosa_admin_present|failed
+
+- name: Set GOSa admin password
+  command: /usr/bin/ldappasswd -D "cn={{ ldap_admin_cn }},{{ gosa_ldap_dn }}" -w "{{ ldap_admin_password }}" -s "{{ gosa_password }}" "cn=System Administrator-{{ gosa_admin }},ou=people,{{ gosa_ldap_dn }}"
+
+- name: Remove old apache2 gosa conf.d symlink
+  command: rm /etc/apache2/conf.d/gosa.conf removes=/etc/apache2/conf.d/gosa.conf
+
+- name: Configure Apache HTTP server for GOSa
+  template: src=etc_apache2_sites-available_gosa.j2 dest=/etc/apache2/sites-available/gosa.conf group=root owner=root force=yes
+
+- name: Enable GOSa site
+  command: a2ensite gosa.conf creates=/etc/apache2/sites-enabled/gosa.conf
+  notify: restart apache
+  

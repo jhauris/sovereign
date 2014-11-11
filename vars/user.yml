@@ -86,3 +86,17 @@ selfoss_password_hash: "TODO"
 # wallabag
 wallabag_salt: TODO
 wallabag_db_password: TODO
+
+# ldap
+ldap_org: TODO
+ldap_domain: TODO # NOTE: This will be converted to the base DN
+ldap_host: TODO   # This is the fqdn of the machine hosting ldap
+ldap_admin_cn: admin
+ldap_admin_password: TODO
+
+# GOsa
+gosa_ldap_dn: TODO
+gosa_admin: TODO
+gosa_password: TODO
+gosa_domain: TODO # NOTE: this will be the server to configured by apache
+gosa_root: TODO

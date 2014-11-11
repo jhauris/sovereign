@@ -124,3 +124,6 @@ wallabag_domain: "read.{{ domain }}"
 wallabag_db_username: wallabag
 # wallabag_db_password: (required)
 wallabag_db_database: wallabag
+
+# ldap
+ldap_domain: "ldap.{{ domain }}"
