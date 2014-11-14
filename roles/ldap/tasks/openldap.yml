@@ -153,6 +153,7 @@
             group=www-data
             mode=0640
 
+## Verify/create gosa admin account
 - name: Check for GOSa admin account
   shell: ldapsearch -H "ldap://{{ ldap_host }}" -D "cn={{ ldap_admin_cn }},{{ gosa_ldap_dn }}" -b "ou=people,{{ gosa_ldap_dn }}" -w "{{ ldap_admin_password }}" "(&(objectClass=gosaAccount)(uid={{ gosa_admin }}))" cn | grep "^dn"
   register: gosa_admin_present
@@ -174,6 +175,38 @@
 
 - name: Set GOSa admin password
   command: /usr/bin/ldappasswd -D "cn={{ ldap_admin_cn }},{{ gosa_ldap_dn }}" -w "{{ ldap_admin_password }}" -s "{{ gosa_password }}" "cn=System Administrator-{{ gosa_admin }},ou=people,{{ gosa_ldap_dn }}"
+
+## Verify/create ou=gosa,ou=configs,ou=system,{{ gosa_ldap_dn }}
+- name: Check for GOSa ou
+  shell: ldapsearch -H "ldap://{{ ldap_host }}" -D "cn={{ ldap_admin_cn }},{{ gosa_ldap_dn }}" -b "ou=gosa,ou=configs,ou=systems,{{ gosa_ldap_dn }}" -w "{{ ldap_admin_password }}" | grep "^dn"
+  register: gosa_ou_check
+  ignore_errors: True
+
+- name: Check for configs ou
+  shell: ldapsearch -H "ldap://{{ ldap_host }}" -D "cn={{ ldap_admin_cn }},{{ gosa_ldap_dn }}" -b "ou=configs,ou=systems,{{ gosa_ldap_dn }}" -w "{{ ldap_admin_password }}" | grep "^dn"
+  register: configs_ou_check
+  when: gosa_ou_check|failed
+  ignore_errors: True
+
+- name: Check for systems ou
+  shell: ldapsearch -H "ldap://{{ ldap_host }}" -D "cn={{ ldap_admin_cn }},{{ gosa_ldap_dn }}" -b "ou=systems,{{ gosa_ldap_dn }}" -w "{{ ldap_admin_password }}" | grep "^dn"
+  register: systems_ou_check
+  when: configs_ou_check|failed
+  ignore_errors: True
+
+- name: Add systems ou
+  script: add_ou.sh "{{ ldap_admin_cn }}" "{{ ldap_admin_password }}" "{{ gosa_ldap_dn }}" "{{ ldap_host }}" systems "ou=systems,{{ gosa_ldap_dn }}"
+  when: systems_ou_check|failed
+
+- name: Add configs ou
+  script: add_ou.sh "{{ ldap_admin_cn }}" "{{ ldap_admin_password }}" "{{ gosa_ldap_dn }}" "{{ ldap_host }}" configs "ou=configs,ou=systems,{{ gosa_ldap_dn }}"
+  when: configs_ou_check|failed
+
+- name: Add gosa ou
+  script: add_ou.sh "{{ ldap_admin_cn }}" "{{ ldap_admin_password }}" "{{ gosa_ldap_dn }}" "{{ ldap_host }}" gosa "ou=gosa,ou=configs,ou=systems,{{ gosa_ldap_dn }}"
+  when: gosa_ou_check|failed
+
+## fix gosa config files
 
 - name: Remove old apache2 gosa conf.d symlink
   command: rm /etc/apache2/conf.d/gosa.conf removes=/etc/apache2/conf.d/gosa.conf
